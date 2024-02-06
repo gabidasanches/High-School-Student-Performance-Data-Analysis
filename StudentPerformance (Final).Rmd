@@ -1,0 +1,457 @@
+---
+title: "Student Performance Data"
+output: word_document
+date: "2023-11-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading the Dataste
+
+High School Student Performance Dataset
+
+```{r}
+student_performance <- read.csv("student_portuguese.csv", header=TRUE)
+View(student_performance)
+dim(student_performance)
+colnames(student_performance)
+```
+
+## DATA CLEANING
+
+Check for missing values:
+```{r}
+missing_values <- is.na(student_performance)
+true_values <-which(missing_values, arr.ind = TRUE)
+print(true_values)
+```
+
+*Comment:* 2 missing values found. Because it is on grade2 column, we cannot calculate the mean and have an accurate value, so we decided to omit those 2 
+
+Check for missing values:
+```{r}
+student_performance <- na.omit(student_performance)
+#check for missing values again:
+missing_values <- is.na(student_performance)
+true_values <-which(missing_values, arr.ind = TRUE)
+print(true_values)
+
+dim(student_performance)
+```
+*Comment:* No missing values found
+
+```{r}
+student_performance$study_time_numeric <- NA 
+
+unique(student_performance$study_time)
+study_time_numeric_values <- c("<2 hours" = 1, "2 to 5 hours" = 2, "5 to 10 hours" = 3, ">10 hours" = 4)
+
+for (level in names(study_time_numeric_values)) {
+  student_performance$study_time_numeric[student_performance$study_time == level] <- study_time_numeric_values[level]
+}
+
+View(student_performance)
+```
+
+#Association Analysis
+
+y-variable: final_grade
+
+```{r}
+library(regclass)
+library(ggplot2)
+cor_matrix(student_performance)
+all_correlations(student_performance,interest="final_grade", sorted="strength")
+all_correlations(student_performance,interest="final_grade", sorted="strength",type="spearman")
+```
+x-variables of interest: Parent Status (living together or apart), Study Time (4 categories), Number of Absences, Internet Access (Yes or No), Class Failures, Weekday Alcohol Consumption (Rating level 1-5), Grade 1 score, and Grade 2 score. 
+
+```{r}
+#x variable: parent status
+
+boxplot(final_grade~parent_status, data=student_performance, 
+   main="Parent Status on Final Grade",
+   xlab="Parent Status", 
+   ylab="Final Grade")
+#Conclusion: The boxplot suggests there is no association between parent status and final grade
+#Reason: Mean and interquartile range of final grade is the same across both categories. 
+#Other observations: The range is larger for parents who are living together because this group has a larger sample size.  
+
+associate(final_grade~parent_status, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is no association between the final grade and parents living together or apart
+#Reason: Very high p-value between 0.879 and 0.917 which is above our alpha of 0.05. 
+
+#Calculating p-value using theoretical approach
+1-pf(0.0001186,df1=2-1,df2=647-2) 
+#Result: 0.9913143 high p-value = suggests no association
+
+```
+
+```{r}
+#x variable: study time
+
+boxplot(final_grade~study_time_numeric, data=student_performance, 
+   main="Study Time on Final Grade",
+   xlab="Study Time", 
+   ylab="Final Grade")
+#Conclusion: There could be an association between study time and final grade. 
+#Reason: Mean and interquartile range of final grade is different across the x-variables.
+#Other observations: Mean and IQ range seem to increase as study time level increases indicating potential positive correlation. 
+
+associate(final_grade~study_time_numeric, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is an association between study time and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+```
+
+```{r}
+#x variable: absences
+
+associate(final_grade~absences, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is an association between absences and final grade. 
+#Reason: With 95% confidence, the p-value is between 0.014 and 0.033 using Pearson and 0 and 0.004 using Spearman, entirely below our alpha of 0.05. 
+
+plot(final_grade~absences, data=student_performance,
+     xlab="Absences", ylab="Final Grade", 
+     main = "Association between Absences and Final Grade")
+```
+
+```{r}
+#x variable: internet_access
+
+associate(final_grade~internet_access, data = student_performance, permutations=1500, seed=500)
+#Conclusion: There is an association between internet access and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+#Calculating p-value using theoretical approach
+1-pf(15.06,df1=2-1,df2=647-2) 
+#Result: 0.0001148535 low p-value = suggests an association
+
+
+ggplot(student_performance, aes(x = internet_access, fill = cut(final_grade, breaks = seq(0,20, by=5)))) +
+  geom_bar(position = "stack") +
+  labs(title = "Count of Final Grade Results by Internet Access",
+       x = "Internet Access",
+       y = "Count") +
+  scale_fill_discrete(name = "Final Grade") +  #Use a discrete color scale
+  theme_minimal()
+```
+
+```{r}
+#x variable: class_failures
+
+boxplot(final_grade ~ class_failures, data = student_performance,
+        xlab = "Class Failures", ylab = "Final Grade",
+        main = "Association between Class Failures and Final Grade")
+#Conclusion: Boxplot suggests there is an association between class failures and final grade. 
+#Reason: Mean and interquartile range of final grade differs across number of class failures. 
+#Other observations: Mean of final grade seems to decrease when class failures increase. 
+
+associate(final_grade~class_failures, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is an association between class failures and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+```
+
+
+
+
+```{r}
+#x variable: weekday_alcohol
+
+boxplot(final_grade ~ weekday_alcohol, data = student_performance,
+        xlab = "Weekday Alcohol", ylab = "Final Grade",
+        main = "Association between Weekday Alcohol and Final Grade")
+#Conclusion: Boxplot suggests there is an association between weekday alcohol and final grade. 
+#Reason: Mean and interquartile range of final grade differs across weekday alcohol rankings. 
+#Other observations: Mean of final grade seems to decrease when weekday alcohol ranking increases. 
+
+associate(final_grade~weekday_alcohol, data = student_performance, permutations=1000, seed=500) 
+#Conclusion: There is an association between weekday alcohol and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+```
+
+
+
+```{r}
+#x variable: grade_2
+
+associate(final_grade~grade_2, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is an association between grade 2 and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+ggplot(data=student_performance, aes(x=grade_2, y=final_grade)) + 
+geom_point(color='red', pch=16,size=1, fill='red') +
+geom_smooth(method="lm", color="blue", linewidth=0.5) +
+labs(x="Grade 2", y="Final Grade", title ="Association between Grade 2 and Final Grade")
+
+```
+
+
+```{r}
+#x variable: grade_1
+
+associate(final_grade~grade_1, data = student_performance, permutations=1000, seed=500)
+#Conclusion: There is an association between grade 1 and final grade. 
+#Reason: With 95% confidence, the p-value is between 0 and 0.004, entirely below our alpha of 0.05. 
+
+ggplot(data=student_performance, aes(x=grade_1, y=final_grade)) + 
+geom_point(color='red', pch=16,size=1, fill='red') +
+geom_smooth(method="lm", color="blue", linewidth=0.5) +
+labs(x="Grade 1", y="Final Grade", title ="Association between Grade 1 and Final Grade")
+
+```
+
+
+
+#Linear Regression
+
+x variables of interest: Study Time, Number of Absences, Class Failures, Weekday Alcohol, Grade 1 and Grade 2. 
+
+We will not be using Parent Status as one of our variables of interest because there does not seem to be an association between it and our y-variable. We will also not use Internet Access as this is categorical. 
+
+```{r}
+#x variable: study time
+regression_1 <- lm(final_grade~study_time_numeric,data=student_performance)
+regression_1
+
+confint(regression_1,level=0.95)
+#Correlation: There is a positive correlation between study time and final grade. 
+#With 95% confidence, a student's final grade will decrease by 0.68 to 1.27 as their study time level increases by 1. (1=<2 hours, 2=2-5 hours, 3=5-10 hours, 4=>10 hours)
+
+possible_regressions(regression_1)
+#Test for significance
+#F test
+anova(regression_1)
+
+#Using summary
+summary(regression_1)
+```
+Study Time is significant and has a positive correlation with Final Grade. 
+RSE is 3.134 on 645 degrees of freedom
+Multiple R-squared:  0.0626,	Adjusted R-squared:  0.06115
+
+```{r}
+#x variable: absences
+regression_2 <- lm(final_grade~absences,data=student_performance)
+regression_2
+
+confint(regression_2,level=0.95)
+#Correlation: There is a negative correlation between absences and final grade. 
+#With 95% confidence, a student's final grade will decrease by 0.12 to 0.01 as their absences increase by 1. 
+
+possible_regressions(regression_2)
+#Test for significance
+#F test
+anova(regression_2)
+
+#Using summary
+summary(regression_2)
+```
+Absences is significant and has a negative correlation with Final Grade. 
+RSE is 3.224 on 645 degrees of freedom
+Multiple R-squared:  0.008435,	Adjusted R-squared:  0.006898
+
+```{r}
+#x variable: class failures
+regression_3 <- lm(final_grade~class_failures,data=student_performance)
+regression_3
+
+confint(regression_3,level=0.95)
+#Correlation: There is a negative correlation between class failures and final grade. 
+#With 95% confidence, a student's final grade will decrease by 1.76 to 2.53 as their class failures increase by 1.
+
+possible_regressions(regression_3)
+
+#Test for significance
+#F test
+anova(regression_3)
+
+#Using summary
+summary(regression_3)
+```
+Class Failures is significant and has a negative correlation with Final Grade. 
+RSE is 2.976 on 645 degrees of freedom 
+Multiple R-squared:  0.1551,	Adjusted R-squared:  0.1538 
+
+```{r}
+#x variable: weekday alcohol
+regression_4 <- lm(final_grade~weekday_alcohol,data=student_performance)
+regression_4
+
+confint(regression_4,level=0.95)
+#Correlation: There is a negative correlation between Weekday Alcohol and Final Grade. 
+#With 95% confidence, a student's final grade will decrease by 0.45 to 0.98 as their Weekday Alcohol rating increases by 1. 
+
+possible_regressions(regression_4)
+
+#Test for significance
+#F test
+anova(regression_4)
+#Using summary
+summary(regression_4)
+```
+Weekday Alcohol is significant and has a negative correlation with Final Grade. 
+RSE is 3.169 on 645 degrees of freedom 
+Multiple R-squared:  0.04176,	Adjusted R-squared:  0.04027
+
+```{r}
+#x variable: grade 2
+regression_5 <- lm(final_grade~grade_2,data=student_performance)
+regression_5
+
+confint(regression_5,level=0.95)
+#Correlation: There is a positive correlation between Grade 2 and Final Grade. 
+#With 95% confidence, a student's final grade will increase by 0.98 to 1.05 as their Grade 2 increases by 1. 
+
+possible_regressions(regression_5)
+#Test for significance
+#F test
+anova(regression_5)
+#Using summary
+summary(regression_5)
+```
+Grade 2 is significant and has a positive correlation with Final Grade. 
+RSE is 1.28 on 645 degrees of freedom
+Multiple R-squared:  0.8437,	Adjusted R-squared:  0.8435
+
+```{r}
+#x variable: Grade 1
+regression_6 <- lm(final_grade~grade_1,data=student_performance)
+regression_6
+
+confint(regression_5,level=0.95)
+#Correlation: There is a positive correlation between Grade 1 and Final Grade. 
+#With 95% confidence, a student's final grade will increase by 0.98 to 1.05 as their Grade 1 increases by 1. 
+
+possible_regressions(regression_6)
+#Test for significance
+#F test
+anova(regression_6)
+#Using summary
+summary(regression_6)
+
+```
+Grade 1 is significant and has a positive correlation with Final Grade. 
+RSE is 1.822 on 645 degrees of freedom
+Multiple R-squared:  0.6831,	Adjusted R-squared:  0.6826 
+
+#RSE Comparison 
+
+Comparison of RSE between all the linear regressions: We want a low RSE, which indicates that we have a low chance of error. 
+
+For 'study time', the regression model typically makes an error of 3.134 grade points when predicting the final grade. For 'absences', the regression model typically makes an error of 3.224 grade points. 
+For 'class failures', makes an error of 2.976 grade points, for 'weekday alcohol' 3.169 grade points, 'grade 2' 1.28 grade points, and 'grade 1' 1.882 grade points.
+
+Mean RSE across our x-variables is 2.61. 
+Grade 2 provides the 'best' model with the smallest RSE. 
+Absences, Weekday Alcohol, Study Time, and Class Failures are less effective in predicting Final Grade with RSE of around 3 grade points out of the possible 20. 
+  
+For Rsquared, we want the value to be as close as possible to 1, representing how much the regression model "gets you close" to knowing y.
+'study time' =  0.0626;
+'absences' = 0.008435; 
+'class failures' = 0.01551; 
+'weekday alcohol' = 0.04176; 
+'grade 2' = 0.8437; 
+'grade 1' = 0.6831
+
+Conclusion: Grade 2 and Grade 1 are the best x variables to use to predict the actual y value. 
+
+```{r}
+#PLOTS 
+plot(final_grade~study_time_numeric,data=student_performance)
+abline(regression_1)
+
+plot(final_grade~absences,data=student_performance)
+abline(regression_2)
+
+plot(final_grade~class_failures,data=student_performance)
+abline(regression_3)
+
+plot(final_grade~weekday_alcohol,data=student_performance)
+abline(regression_4)
+
+plot(final_grade~grade_2,data=student_performance)
+abline(regression_5)
+
+plot(final_grade~grade_1,data=student_performance)
+abline(regression_6)
+```
+
+
+#Other Techniques
+
+```{r}
+# Multilinear Regression:
+multi_regression <- lm(final_grade~study_time_numeric+absences+class_failures+weekday_alcohol+grade_2+grade_1, data= student_performance)
+summary(multi_regression)
+
+# Multicolinearity 
+library(car)
+vif(multi_regression)
+```
+
+*The VIF, which measures the amount of multicollinearity (2 or more predictor variables in a multi-linear regression are highly correlated) is high for grade_2 and grade_1 indicating high multicollinearity, and it is low for the other variables.*
+
+
+```{r}
+library(rpart) #for trees
+library(rpart.plot) 
+# To make model predictions, we divide the data into a Training Set and an independent Test Set
+set.seed(678)
+index <- sample(1:nrow(student_performance), size=0.75*nrow(student_performance))
+trainData <- student_performance[index,]
+testData <- student_performance[-index,]
+
+# Run Linear Regression / Classification Model 
+lm.fit <- lm(final_grade ~., data=trainData)
+summary(lm.fit) 
+```
+*In general, the higher the R-squared, the better the model fits the data, we can say the fit of our regression model is very good R-squared:  0.8648.*
+
+```{r}
+# We would also like to make an assessment on the Test Data. Analyze correlation between predicted scores and actual scores in the Test Data.
+cor(predict(lm.fit, newdata=testData),testData$final_grade)^2
+```
+*The result also look very good.*
+
+```{r}
+# Grow a Tree
+rtree.fit <- rpart(final_grade ~ ., 
+                  data=trainData,
+                  method="anova", #for regression tree
+                  control=rpart.control(minsplit=30,cp=0.001))
+```
+
+```{r}
+# Examine a Tree
+printcp(rtree.fit)
+```
+
+```{r}
+# Produce Two Plots
+rsq.rpart(rtree.fit)
+```
+```{r}
+# Visualize cross-validation results 
+plotcp(rtree.fit)
+```
+```{r}
+# Details of the Tree
+summary(rtree.fit)
+```
+
+```{r}
+# Plot Tree
+plot(rtree.fit, uniform=TRUE, 
+    main="Regression Tree for Final_Grade")
+text(rtree.fit, use.n=TRUE, all=TRUE, cex=.8)
+plot
+```
+```{r}
+prp(rtree.fit)
+```
+
